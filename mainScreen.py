@@ -8,9 +8,10 @@ import os
 
 
 class Worker(QtCore.QObject):
+    finished = QtCore.pyqtSignal(list)
+
     def __init__(self, predictionModel, fileNames):
         super(Worker, self).__init__()
-        self.finished = QtCore.pyqtSignal(list)
         self.predictionModel = predictionModel
         self.fileNames = fileNames
         self.pause = False
@@ -97,7 +98,7 @@ class mainScreen(QtWidgets.QMainWindow):
         # Create model for items in the table
         self.model = QtGui.QStandardItemModel()
         self.model.setHorizontalHeaderLabels(
-            ["File name", "Covid prediction (%)"])
+            ["File name", "Confidence of Covid-19 (%)"])
 
         # Create filter for items in table
         self.filter = QtCore.QSortFilterProxyModel()
@@ -130,6 +131,11 @@ class mainScreen(QtWidgets.QMainWindow):
         fileSearchLayout.addWidget(lineEdit)
         lineEdit.textChanged.connect(self.filter.setFilterRegExp)
 
+        informationLabel = QtWidgets.QLabel(centralWidget)
+        informationLabel.setFont(smallFont)
+        informationLabel.setText("Photos should be uploaded horizontally (spine at the bottom of the picture).")
+        informationLabel.setStyleSheet("border: 1px solid black;")
+
         buttonLayout = QtWidgets.QHBoxLayout()
 
         # Create import button
@@ -150,6 +156,7 @@ class mainScreen(QtWidgets.QMainWindow):
 
         tableVerticalLayout.addLayout(fileSearchLayout)
         verticalLayout.addLayout(tableVerticalLayout)
+        verticalLayout.addWidget(informationLabel, 0)
         verticalLayout.addLayout(buttonLayout)
         gridLayout.addLayout(verticalLayout, 0, 0, 1, 1)
 
@@ -158,24 +165,33 @@ class mainScreen(QtWidgets.QMainWindow):
     def loadPhotos(self):
         # Method to load photos
 
-        self.results = [1, {}]
+        if len(self.results[1]) == 0 and len(self.fileNames) > 0:
+            self.fileNames = self.fileNames
 
         # File dialog
         fileDialog = QtWidgets.QFileDialog()
         fileDialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)
         fileDialog.setNameFilter(("Images (*.png *.jpg)"))
         if fileDialog.exec_() == QtWidgets.QDialog.Accepted:
-            self.fileNames = fileDialog.selectedFiles()
+            #  In case files are selected but not yet predicted, add the files together instead of changing them
+            if len(self.results[1]) == 0 and len(self.fileNames) > 0:
+                self.fileNames = sorted(
+                    list(set(fileDialog.selectedFiles() + self.fileNames)))
+            else:
+                self.fileNames = fileDialog.selectedFiles()
+        else:
+            if not(len(self.results[1]) == 0 and len(self.fileNames) > 0):
+                self.fileNames = []
 
         # Update model
         self.model = QtGui.QStandardItemModel(len(self.fileNames), 1)
         self.model.setHorizontalHeaderLabels(
-            ["File name", "Covid prediction (%)"])
+            ["File name", "Confidence of Covid-19 (%)"])
 
         # Show file names
         for row, fileName in enumerate(self.fileNames):
             fileNameColumn = QtGui.QStandardItem(fileName.split("/")[-1])
-            fileNameColumn.setToolTip(fileName.split("/")[-1])
+            fileNameColumn.setToolTip(fileName)
             covidPredictionColumn = QtGui.QStandardItem("")
             self.model.setItem(row, 0, fileNameColumn)
             self.model.setItem(row, 1, covidPredictionColumn)
@@ -262,13 +278,13 @@ class mainScreen(QtWidgets.QMainWindow):
         # Method to export the data to .json file
 
         if len(self.results[1]) > 0:
-            # Get the name of the file
+            # Get the name of the file (code based on response from ekhumoro on https://stackoverflow.com/questions/29835413/cant-add-extension-to-file-in-qfiledialog)
             fileDialog = QtWidgets.QFileDialog()
             fileDialog.setDefaultSuffix('json')
             fileDialog.setAcceptMode(QtWidgets.QFileDialog.AcceptSave)
-            fileDialog.setNameFilters(['JSON (*.json)'])
+            fileDialog.setNameFilter(('JSON (*.json)'))
             if fileDialog.exec_() == QtWidgets.QDialog.Accepted:
-                name = fileDialog.fileSelected()
+                name = fileDialog.selectedFiles()[0]
                 if name.split(".")[-1] != "json":
                     name += ".json"
             else:
@@ -292,13 +308,13 @@ class mainScreen(QtWidgets.QMainWindow):
         # Method to export the data to .csv file
 
         if len(self.results[1]) > 0:
-            # Get the name of the file
+            # Get the name of the file (code based on response from ekhumoro on https://stackoverflow.com/questions/29835413/cant-add-extension-to-file-in-qfiledialog)
             fileDialog = QtWidgets.QFileDialog()
             fileDialog.setDefaultSuffix('csv')
             fileDialog.setAcceptMode(QtWidgets.QFileDialog.AcceptSave)
-            fileDialog.setNameFilters(['CSV (*.csv)'])
+            fileDialog.setNameFilter(('CSV (*.csv)'))
             if fileDialog.exec_() == QtWidgets.QDialog.Accepted:
-                name = fileDialog.fileSelected()
+                name = fileDialog.selectedFiles()[0]
                 if name.split(".")[-1] != "csv":
                     name += ".csv"
             else:
@@ -325,15 +341,17 @@ class mainScreen(QtWidgets.QMainWindow):
 
     def showEvent(self, event):
         # Update the width of columns of table when shown
-        self.tableView.setColumnWidth(0, int(0.8*self.tableView.width()))
         self.tableView.horizontalHeader().setSectionResizeMode(
-            1, QtWidgets.QHeaderView.Stretch)
+            0, QtWidgets.QHeaderView.ResizeToContents)
+        self.tableView.horizontalHeader().setSectionResizeMode(
+            0, QtWidgets.QHeaderView.Stretch)
 
     def resizeEvent(self, event):
         # Update the width of columns of table when window is resized
-        self.tableView.setColumnWidth(0, int(0.8*self.tableView.width()))
         self.tableView.horizontalHeader().setSectionResizeMode(
-            1, QtWidgets.QHeaderView.Stretch)
+            1, QtWidgets.QHeaderView.ResizeToContents)
+        self.tableView.horizontalHeader().setSectionResizeMode(
+            0, QtWidgets.QHeaderView.Stretch)
 
     def closeEvent(self, event):
         # Pause the worker when program is closed during predicting

@@ -4,7 +4,8 @@
 - PyQt5,
 - PIL (Pillow),
 - tensorflow (version 2.8),
-- numpy (should be included with tensorflow instalation).
+- numpy (should be included with tensorflow instalation),
+- Python (version 3.9.0 or newer)
 
 # Other requirements:
 - file model.h5 must be included in the same directory as file main.py
