@@ -4,10 +4,10 @@ import json
 import csv
 import os
 
-# Worker class is responsible for running the prediction code without freezing the GUI
-
 
 class Worker(QtCore.QObject):
+    '''Worker class is responsible for running the prediction code without freezing the GUI.'''
+
     finished = QtCore.pyqtSignal(list)
 
     def __init__(self, predictionModel, fileNames):
@@ -18,6 +18,8 @@ class Worker(QtCore.QObject):
 
     @QtCore.pyqtSlot()
     def run(self):
+        '''Prediction code that uses the API the get the COVID-19 confidence'''
+
         runTime = 0
         allTimeResults = [1, {}]
 
@@ -40,6 +42,8 @@ class Worker(QtCore.QObject):
 
 
 class mainScreen(QtWidgets.QMainWindow):
+    '''Class responsible for the user interface.'''
+
     def __init__(self, parent=None):
         super(mainScreen, self).__init__(parent)
         self.setMinimumSize(1000, 700)
@@ -51,7 +55,7 @@ class mainScreen(QtWidgets.QMainWindow):
         self.worker = 0
 
     def createInterface(self):
-        # Create the GUI widgets and functionalities
+        '''Creation of all widgets visible on screen together with functionalities'''
 
         bigFont = QtGui.QFont()
         bigFont.setPointSize(18)
@@ -108,13 +112,18 @@ class mainScreen(QtWidgets.QMainWindow):
 
         # Create tableView and set the column/row properties
         self.tableView = QtWidgets.QTableView(centralWidget)
-        self.tableView.verticalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Fixed)
-        self.tableView.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Fixed)
-        self.tableView.setEditTriggers(
-            QtWidgets.QAbstractItemView.NoEditTriggers)
 
         # Set model for the table
         self.tableView.setModel(self.model)
+        
+        self.tableView.verticalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Fixed)
+        self.tableView.horizontalHeader().setSectionResizeMode(
+            0, QtWidgets.QHeaderView.Stretch)
+        self.tableView.horizontalHeader().setSectionResizeMode(
+            1, QtWidgets.QHeaderView.ResizeToContents)
+
+        self.tableView.setEditTriggers(
+            QtWidgets.QAbstractItemView.NoEditTriggers)
 
         tableVerticalLayout.addWidget(self.tableView)
 
@@ -133,7 +142,8 @@ class mainScreen(QtWidgets.QMainWindow):
 
         informationLabel = QtWidgets.QLabel(centralWidget)
         informationLabel.setFont(smallFont)
-        informationLabel.setText("Photos should be uploaded horizontally (spine at the bottom of the picture).")
+        informationLabel.setText(
+            "Photos should be uploaded horizontally (spine at the bottom of the picture).")
         informationLabel.setStyleSheet("border: 1px solid black;")
 
         buttonLayout = QtWidgets.QHBoxLayout()
@@ -163,10 +173,7 @@ class mainScreen(QtWidgets.QMainWindow):
         self.setCentralWidget(centralWidget)
 
     def loadPhotos(self):
-        # Method to load photos
-
-        if len(self.results[1]) == 0 and len(self.fileNames) > 0:
-            self.fileNames = self.fileNames
+        '''Asking for photos by opening system file dialog. Method is triggered by clicking "Import photos" button.'''
 
         # File dialog
         fileDialog = QtWidgets.QFileDialog()
@@ -179,9 +186,10 @@ class mainScreen(QtWidgets.QMainWindow):
                     list(set(fileDialog.selectedFiles() + self.fileNames)))
             else:
                 self.fileNames = fileDialog.selectedFiles()
+                self.results[1] = {}
         else:
-            if not(len(self.results[1]) == 0 and len(self.fileNames) > 0):
-                self.fileNames = []
+            # Return if no photos are loaded, so that list is not updated
+            return
 
         # Update model
         self.model = QtGui.QStandardItemModel(len(self.fileNames), 1)
@@ -201,7 +209,7 @@ class mainScreen(QtWidgets.QMainWindow):
         self.tableView.setModel(self.filter)
 
     def predict(self):
-        # Method to predict the loaded photos
+        '''Method that predicts the confidence of COVID-19 using second thread worker. Method is triggered by clicking "Predict" button.'''
 
         # Check if model.h5 is in directory
         successInformation = self.predictionModel.load_model('model.h5')
@@ -233,7 +241,7 @@ class mainScreen(QtWidgets.QMainWindow):
             return
 
     def updateList(self, results):
-        # Method to show predictions
+        '''Updating the table by placing the results in second column.'''
 
         self.results = results
 
@@ -262,12 +270,14 @@ class mainScreen(QtWidgets.QMainWindow):
         self.importPhotos.setEnabled(True)
 
     def stopPrediction(self):
-        # Pause predicting code
+        '''Pause the prediction worker. Method triggered by clicking "Cancel prediction" button.'''
+
         if self.worker:
             self.worker.pause = True
 
     def createMessage(self, title, message):
-        # Method to create popup window
+        '''Creation and display of pop-up window with given title and message.'''
+
         popup = QtWidgets.QMessageBox()
         popup.setWindowTitle(title)
         popup.setText(message)
@@ -275,7 +285,7 @@ class mainScreen(QtWidgets.QMainWindow):
         popup.exec_()
 
     def exportDataJson(self):
-        # Method to export the data to .json file
+        '''Exporting the data to .json format.'''
 
         if len(self.results[1]) > 0:
             # Get the name of the file (code based on response from ekhumoro on https://stackoverflow.com/questions/29835413/cant-add-extension-to-file-in-qfiledialog)
@@ -305,7 +315,7 @@ class mainScreen(QtWidgets.QMainWindow):
             self.createMessage("Save error", "There is no data to save.")
 
     def exportDataCsv(self):
-        # Method to export the data to .csv file
+        '''Exporting the data to .csv format.'''
 
         if len(self.results[1]) > 0:
             # Get the name of the file (code based on response from ekhumoro on https://stackoverflow.com/questions/29835413/cant-add-extension-to-file-in-qfiledialog)
@@ -339,21 +349,8 @@ class mainScreen(QtWidgets.QMainWindow):
         else:
             self.createMessage("Save error", "There is no data to save.")
 
-    def showEvent(self, event):
-        # Update the width of columns of table when shown
-        self.tableView.horizontalHeader().setSectionResizeMode(
-            0, QtWidgets.QHeaderView.ResizeToContents)
-        self.tableView.horizontalHeader().setSectionResizeMode(
-            0, QtWidgets.QHeaderView.Stretch)
-
-    def resizeEvent(self, event):
-        # Update the width of columns of table when window is resized
-        self.tableView.horizontalHeader().setSectionResizeMode(
-            1, QtWidgets.QHeaderView.ResizeToContents)
-        self.tableView.horizontalHeader().setSectionResizeMode(
-            0, QtWidgets.QHeaderView.Stretch)
-
     def closeEvent(self, event):
-        # Pause the worker when program is closed during predicting
+        '''Pausing the prediction worker in case the program is closed while predicting.'''
+
         if self.worker:
             self.worker.pause = True
